@@ -1,5 +1,7 @@
 # NTU Digital Circuit Lab: FPGA coursework (DE2-115)
 
+[![Simulation](https://github.com/EdwinYam/ntu-dclab-fpga/actions/workflows/sim.yml/badge.svg)](https://github.com/EdwinYam/ntu-dclab-fpga/actions/workflows/sim.yml)
+
 Coursework by Bo-Wen Chen with teammates (NTU Digital Circuit Lab, 2017).
 
 These are the labs and final project from the Digital Circuit Lab course in NTU Electrical Engineering, fall 2017. Everything targets the Terasic DE2-115 board (Altera Cyclone IV E, EP4CE115F29C7) and is built with Quartus Prime.
@@ -59,15 +61,26 @@ An automatic food slicer. An HC-SR04 ultrasonic sensor measures where the food i
 
 | Module | Role |
 |---|---|
-| `controller.v` | Main FSM: initial trigger and measurement, move, measure, cut, pause, and move back after the last slice. It keeps triggers at least 50 ms apart. |
+| `controller.v` | Main FSM: initial trigger and measurement, move, measure, cut, pause, and move back after the last slice. For N slices it cuts N - 1 times, once the measured distance has dropped by another 1/N of the initial length. It keeps measurements at least 50 ms apart (`SPACING_CYCLES`). |
 | `supersonic.v` | HC-SR04 driver: 10 µs trigger pulse, echo pulse width measured in clock cycles |
 | `track_driver.v` | Track motor: clock divider plus forward / reverse / stop drive patterns, selected by `move` and `back` |
-| `cut_driver.v` | Cutting stepper: clock divider plus two-phase full-step sequence; each stroke turns 100 steps (90 degrees), reverses for 100 steps, then reports `cut_end` |
+| `cut_driver.v` | Cutting stepper: clock divider plus two-phase full-step sequence; each stroke turns 100 steps (90 degrees) and back, then reports `cut_end` (see the note below) |
 | `slice_counter.v` | Number of slices (0, 2, 4, 8, 16), stepped with KEY3; KEY1 starts, KEY2 pauses, KEY0 resets |
 | `Debounce.sv`, `SevenHexDecoder.sv` | Key debouncing and display |
 | `src/DE2_115/` | Board top level, pin assignments and timing constraints |
 
-The testbenches in `testbench/` drive each block and dump waveforms.
+The testbenches in `testbench/` are self-checking. The three system-level benches close the loop through behavioural models in `testbench/models/`:
+
+| Model | Role |
+|---|---|
+| `hcsr04_model.v` | HC-SR04: a trigger of at least 10 µs (500 cycles) starts a measurement; after a short delay, echo stays high for a time proportional to the distance. Short triggers and triggers during a measurement are ignored and counted. |
+| `track_model.v` | Food tray: moves 1 mm towards the sensor every N cycles while the forward pattern is applied, away from it for the reverse pattern; clamped at the ends of the track |
+| `stepper_decoder.v` | Decodes the cutting motor phases into steps and direction, per stroke |
+| `kh_monitor.v` | Checks the trigger width, the spacing between measurements and that the tray stands still while cutting; records where each cut happens |
+
+To keep run times short, the benches override parameters instead of changing the defaults: `SPACING_CYCLES` = 2000 (2.5M on the board), 20-cycle cutter steps (`define_cut_speed` = 0.0004 ms instead of 5 ms), a 10-cycle track driver clock (`define_motor_speed` = 0.0002 ms instead of 1000 ms), and 10 cycles of echo per mm instead of 290. Distances scale by the same factor, so the controller sees the same relative positions.
+
+`cut_driver.v` reverses when its step counter reaches 100, but the step taken on that clock edge still uses the old direction, and the same happens when it raises `cut_end`. Each stroke is therefore 100 steps out and 101 back. When the coils are energised for the next stroke, the rotor snaps one step to the starting phase, so the blade starts every stroke from the same position. It ends one step (0.9 degrees) past that position after the last stroke. The testbenches check for this behaviour, and the driver is unchanged.
 
 ## Simulation
 
@@ -87,8 +100,13 @@ Results with Icarus Verilog 12.0 and Verilator 5.020:
 | `lab3/tb/tb_I2cInitializer.sv` | iverilog | PASS: 11 register writes in order; an injected NACK is retried |
 | `lab3/tb/tb_AudioCore.sv` | Verilator | PASS: record/pause/stop, playback at 1x, 3x, 8x, 1/2x repeat, 1/3x and 1/8x interpolated, pause during playback, stop, auto-stop when memory is full |
 | `lab3/src` (whole design) | `verilator --lint-only -Wall` | Clean |
-| `final-kitchens-helper/testbench/supersonic_tb.v`, `cut_driver_tb.v` | iverilog | Run to completion |
-| `final-kitchens-helper/testbench/controller_tb.v`, `supersonic_controller_tb.v`, `Top_tb.v` | iverilog | Compile and run, then hit their own timeout. The controller now keeps triggers 50 ms apart (2.5M cycles), which is longer than these testbenches simulate. |
+| `final-kitchens-helper/testbench/supersonic_tb.v` | iverilog | PASS: a 65535-cycle echo is measured as 65535 cycles |
+| `final-kitchens-helper/testbench/cut_driver_tb.v` | iverilog | PASS: two strokes of 100 steps out and 101 back |
+| `final-kitchens-helper/testbench/controller_tb.v` | iverilog | PASS: 2, 4, 8 and 16 slices; N - 1 cuts at the expected positions, tray back at its start, motors stopped; pause and resume; 50 ms spacing (scaled) and 10 µs triggers |
+| `final-kitchens-helper/testbench/supersonic_controller_tb.v` | iverilog | PASS: 2, 4 and 8 slices through `supersonic.v` and the HC-SR04 model, same checks |
+| `final-kitchens-helper/testbench/Top_tb.v` | iverilog | PASS: 2, 4, 8 and 16 slices through the whole design (slice selection, both motor drivers); also checks every cut stroke and that the tray stands still while cutting |
+
+The same script runs on every push in GitHub Actions (`.github/workflows/sim.yml`).
 
 ## Building for the board
 
@@ -99,4 +117,7 @@ Open the Quartus project in `lab1/src/DE2_115/` or `lab3/src/DE2_115/` (Quartus 
 - Lab 1: the stray `` `elsif `` in `Top.sv` became `` `else `` so that the file compiles outside Quartus.
 - Lab 2: an unresolved merge conflict in `Rsa256Wrapper.sv` was resolved to the 2-bit state encoding. The state registers of both pipelines were widened to 2 bits, because they had been declared 1 bit wide for 3 or 4 states. In the testbench, the reset polarity now matches the core's active-low reset, the timeout was lengthened, and golden-value checks plus test vectors were added.
 - Final project: the `cut_driver_tb.v` and `Top_tb.v` testbenches now use the current parameter names (`define_cut_speed`, `define_motor_speed`).
+- Final project: the 50 ms measurement spacing in `controller.v` is now the `SPACING_CYCLES` parameter, passed through `Top.v` and `supersonic_controller.v`. Its default (2,500,000 cycles) is the old constant, so the board design is unchanged. The `distance` bus in `supersonic_controller.v` and in two testbenches was declared 32 or 17 bits wide and now matches the 27-bit port.
+- Final project: while returning the tray after the last cut, the controller only drove the track backwards during each echo. Between measurements (state `BACK_TRI`, about 50 ms of every cycle) it drove `move` without `back`, so the track motor ran forwards and the tray never came back. `back` is now held for the whole return. The closed-loop testbenches found this.
+- Final project: the waveform-only testbenches were rewritten as self-checking benches, with the models in `testbench/models/`.
 - Build products, simulator work directories, logs, reports and presentation files were not carried over.

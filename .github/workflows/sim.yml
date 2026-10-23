@@ -1,0 +1,20 @@
+name: Simulation
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sim:
+    # ubuntu-24.04 ships Verilator 5.020, needed for --binary --timing
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog and Verilator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends iverilog verilator
+          iverilog -V 2>&1 | head -1
+          verilator --version
+      - name: Run testbenches
+        run: sh scripts/run_sims.sh
