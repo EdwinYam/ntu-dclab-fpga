@@ -278,13 +278,12 @@ module controller#(
                 else begin
                     stateTem_nxt = stateTem_cur;
 						  move_nxt = 1'b1;
+                    back_nxt = 1'b1;   // keep reversing while waiting to trigger
                     if(triggerSuc) begin
                         state_nxt = BACK;
-                        back_nxt = 1'b1;
                     end
                     else begin
                         state_nxt = BACK_TRI;
-                        back_nxt = 1'b0;
                     end
                 end
             end
@@ -314,7 +313,8 @@ module controller#(
                         else begin
                             state_nxt = BACK_TRI;
                             finish_nxt = 1'b0;
-                            move_nxt = 1'b1;									 
+                            move_nxt = 1'b1;
+                            back_nxt = 1'b1;
                         end
                     end
                     else begin
