@@ -12,7 +12,7 @@ module test_supersonic;
     reg         echo;
     wire        valid;
     wire        triggerSuc;
-    wire [31:0] distance;
+    wire [26:0] distance;
 
 /*================ module instantiation ================*/
 	supersonic DUT(
@@ -53,6 +53,12 @@ module test_supersonic;
 
         @(posedge valid) begin
             $display("%d",distance);
+        end
+        // the echo was high for 16'hFFFF cycles
+        if (distance == 27'hFFFF) $display("TB_SUPERSONIC PASS: distance %0d cycles", distance);
+        else begin
+            $display("TB_SUPERSONIC FAIL: distance %0d cycles, expected %0d", distance, 16'hFFFF);
+            $fatal(1);
         end
 		#(`CYCLE * 5);
 		$finish;
