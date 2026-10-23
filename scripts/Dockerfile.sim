@@ -1,0 +1,2 @@
+FROM ubuntu:24.04
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends iverilog verilator make python3 python3-pip g++ && rm -rf /var/lib/apt/lists/*
