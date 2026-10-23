@@ -2,7 +2,8 @@ module Top#(
     parameter  define_cut_speed = 5,      //ms
     parameter  define_motor_speed = 1000, //ms
 	 parameter  DisLen = 26,
-	 parameter  TotLen = DisLen + 1
+	 parameter  TotLen = DisLen + 1,
+    parameter  SPACING_CYCLES = 2500000   // 50 ms between measurements
 
 )(
     input       clk,
@@ -50,7 +51,9 @@ module Top#(
 	assign triggerSuc_o = triggerSuc;
 
 
-    controller controller(
+    controller #(
+        .SPACING_CYCLES(SPACING_CYCLES)
+    ) controller(
       .clk        (clk),
 		.rst_n      (rst_n),
 		.start      (start_i),

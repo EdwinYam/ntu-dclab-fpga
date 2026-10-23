@@ -1,4 +1,7 @@
-module supersonic_controller(
+module supersonic_controller#(
+    parameter DisLen = 26,
+    parameter SPACING_CYCLES = 2500000   // 50 ms between measurements
+)(
     input       clk,
     input       rst_n,
     input       start_i,
@@ -21,9 +24,11 @@ module supersonic_controller(
     
     wire trigger, triggerSuc;
     wire valid;
-    wire [31:0] distance;
+    wire [DisLen:0] distance;
 
-    supersonic supersonic0(
+    supersonic #(
+        .DisLen(DisLen)
+    ) supersonic0(
 		.clk        (clk),
 		.rst_n      (rst_n),
 		.trigger    (trigger),
@@ -33,7 +38,10 @@ module supersonic_controller(
 		.distance   (distance)
     );
     
-    controller controller0(
+    controller #(
+        .DisLen(DisLen),
+        .SPACING_CYCLES(SPACING_CYCLES)
+    ) controller0(
 		.clk        (clk),
 		.rst_n      (rst_n),
 		.start      (start_i),

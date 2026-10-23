@@ -1,6 +1,9 @@
 module controller#(
     parameter DisLen = 26,
-	parameter TotLen = DisLen + 1
+	parameter TotLen = DisLen + 1,
+    // Minimum spacing between ultrasonic measurements, in clock cycles:
+    // 50 ms at 50 MHz. Testbenches override it to shorten simulations.
+    parameter SPACING_CYCLES = 2500000
 )
 (
     input        clk,
@@ -44,7 +47,7 @@ module controller#(
     localparam BACK_TRI = 4'd7;
     localparam BACK     = 4'd8;
 	
-	 localparam spacing  = 22'd2500000;
+	 localparam [21:0] spacing = SPACING_CYCLES;
 	 localparam triggerTime = 9'd500;
 
 //==== wire/reg declaration =============================
@@ -78,7 +81,7 @@ module controller#(
     reg  [4:0] counter;
     reg  [4:0] counter_nxt;
 	
-	 // Stable-counter : keep at least 50ms spacing -> 2500 cycles
+	 // Stable-counter : keep at least 50 ms spacing -> SPACING_CYCLES cycles
 	 reg [21:0] stable_counter;
     reg [21:0] stable_counter_nxt;
 	
